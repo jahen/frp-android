@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_all_start"
+        android:icon="@drawable/ic_play_white"
+        android:orderInCategory="99"
+        android:title="@string/action_all_start"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_add"
+        android:icon="@drawable/ic_add_white"
+        android:orderInCategory="80"
+        android:title="@string/action_add"
+        app:showAsAction="always">
+        <menu>
+            <item
+                android:id="@+id/action_new_ini"
+                android:orderInCategory="100"
+                android:title="INI"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_new_toml"
+                android:orderInCategory="101"
+                android:title="TOML"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_new_yaml"
+                android:orderInCategory="102"
+                android:title="YAML"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_new_json"
+                android:orderInCategory="103"
+                android:title="JSON"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_add_file"
+                android:orderInCategory="200"
+                android:title="@string/action_add_file"
+                android:visible="false"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_add_url"
+                android:orderInCategory="200"
+                android:title="@string/action_add_url"
+                android:visible="false"
+                app:showAsAction="never" />
+            <item
+                android:id="@+id/action_add_scan"
+                android:orderInCategory="200"
+                android:title="@string/action_add_scan"
+                android:visible="false"
+                app:showAsAction="never" />
+
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_import"
+        android:icon="@drawable/ic_import_form_white_24dp"
+        android:orderInCategory="97"
+        android:title="@string/action_import"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_export"
+        android:icon="@drawable/ic_export_form_white_24dp"
+        android:orderInCategory="98"
+        android:title="@string/action_export"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_clear_all"
+        android:orderInCategory="90"
+        android:title="@string/action_clear_all"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:orderInCategory="100"
+        android:title="@string/action_settings"
+        android:visible="false"
+        app:showAsAction="never" />
+</menu>

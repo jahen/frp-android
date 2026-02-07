@@ -1,0 +1,44 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.aab
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local configuration
+local.properties
+
+# Keystore 和签名配置（切勿上传！）
+*.keystore
+*.jks
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android Studio
+/captures
+.externalNativeBuild
+.cxx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JVM 日志
+hs_err_pid*.log
+replay_pid*.log
+
+# Release 构建产物
+app/release/
+
+# 构建脚本（本地使用）
+*.sh
+*.ps1

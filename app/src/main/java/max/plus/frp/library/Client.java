@@ -1,0 +1,61 @@
+package max.plus.frp.library;
+
+import android.content.Context;
+
+/**
+ * Client 包装类
+ * 提供与原生 Client 类相同的静态方法接口
+ * 内部通过 FrpLibraryManager 动态加载和调用
+ */
+public class Client {
+    
+    /**
+     * 初始化，加载库
+     * 在使用前必须先调用此方法
+     */
+    public static void init(Context context) {
+        FrpLibraryManager.getInstance(context).loadLatestLibrary();
+    }
+    
+    /**
+     * 初始化指定版本
+     */
+    public static void init(Context context, String version) {
+        FrpLibraryManager.getInstance(context).loadLibrary(version);
+    }
+    
+    /**
+     * 检查指定 UID 的客户端是否正在运行
+     */
+    public static boolean isRunning(String uid) {
+        Object result = FrpLibraryManager.getInstance().invokeClientMethod("isRunning", uid);
+        return result != null && (Boolean) result;
+    }
+    
+    /**
+     * 关闭指定 UID 的客户端
+     */
+    public static void close(String uid) {
+        FrpLibraryManager.getInstance().invokeClientMethod("close", uid);
+    }
+    
+    /**
+     * 运行配置内容
+     * @param uid 配置 UID
+     * @param cfg 配置内容
+     * @return 错误信息，如果成功返回 null 或空字符串
+     */
+    public static String runContent(String uid, String cfg) {
+        Object result = FrpLibraryManager.getInstance().invokeClientMethod("runContent", uid, cfg);
+        return result != null ? result.toString() : null;
+    }
+    
+    /**
+     * 获取所有运行中的 UID 列表
+     * @return 逗号分隔的 UID 列表
+     */
+    public static String getUids() {
+        Object result = FrpLibraryManager.getInstance().invokeClientMethod("getUids");
+        return result != null ? result.toString() : "";
+    }
+}

@@ -1,0 +1,80 @@
+<resources>
+    <string name="app_name">FRP</string>
+    <string name="app_tag">FRP</string>
+    <string name="title_activity_main">FRP</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="nav_header_title">Android Studio</string>
+    <string name="nav_header_subtitle">android.studio@android.com</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="menu_home">主页</string>
+    <string name="menu_frpc">FRPC</string>
+    <string name="menu_gallery">Gallery</string>
+    <string name="menu_slideshow">Slideshow</string>
+
+    <string name="menu_frps">FRPS</string>
+    <string name="menu_fwd">Fwd</string>
+    <string name="menu_clash">Clash</string>
+    <string name="menu_v2rayng">v2rayNG</string>
+
+    <string name="home_second">Home Second</string>
+    <string name="permissionReason">请授予存储权限，用于读写frp配置文件</string>
+    <string name="action_add">添加</string>
+    <string name="action_add_text">新建配置文本</string>
+    <string name="action_add_url">从网址导入</string>
+    <string name="action_add_file">从文件导入</string>
+    <string name="action_add_scan">扫描二维码</string>
+
+
+    <string name="action_save">保存</string>
+    <string name="action_template">模板</string>
+    <string name="titleInputFileName">请输入文件名称</string>
+    <string name="cancel">取消</string>
+    <string name="done">确定</string>
+    <string name="tipSaveSuccess">保存成功</string>
+    <string name="actionDeleteSuccess">已删除 </string>
+    <string name="actionDeleteFailed"> 删除失败</string>
+    <string name="titleModifyFileName">修改文件名称</string>
+    <string name="notOpened">未开启</string>
+    <string name="hasOpened">已开启</string>
+    <string name="notSelectIni">未选择配置文件</string>
+    <string name="needStopService">请先关闭服务</string>
+    <string name="title_about">关于</string>
+    <string name="title_logcat">logcat</string>
+    <string name="noName">未命名</string>
+    <string name="logcat_copy">复制</string>
+    <string name="logcat_delete">删除</string>
+    <string name="copySuccess">复制成功</string>
+    <string name="titleTemplate">模板文件</string>
+    <string name="app_version">0.67.0</string>
+    <string name="app_repository">关于</string>
+    <string name="app_repository_url">https://github.com/jahen/frp-android</string>
+    <string name="about_app_author_label">App 作者 (jahen):</string>
+    <string name="about_contributors_label">非常感谢以下作者对 App 开发所做的贡献:</string>
+    <string name="about_frp_author_label">frp 作者 (fatedier):</string>
+    <string name="dialogConfirmTitle">提示</string>
+    <string name="configDeleteConfirm">确定删除该条配置</string>
+    <string name="tipServiceRunning">该配置正在运行中，请先关闭</string>
+    <string name="tipWaitService">正在启动服务</string>
+    <string name="action_all_start">启动</string>
+    <string name="action_all_stop">停止</string>
+    <string name="action_clear_all">清除所有</string>
+    <string name="configClearAllConfirm">确定要清除当前界面的所有配置吗？此操作不可恢复。</string>
+    <string name="configClearAllEmpty">没有配置可清除</string>
+    <string name="configClearAllSuccess">已清除所有配置</string>
+    <string name="tipPortConflict">启动失败：端口冲突，请检查是否有其他配置正在使用相同端口</string>
+    <string name="config_format_ini">INI</string>
+    <string name="config_format_toml">TOML</string>
+    <string name="config_format_yaml">YAML</string>
+    <string name="config_format_json">JSON</string>
+    <string name="action_export">导出</string>
+    <string name="action_import">导入</string>
+    <string name="export_success">导出成功</string>
+    <string name="export_failed">导出失败</string>
+    <string name="import_success">导入成功</string>
+    <string name="import_failed">导入失败</string>
+    <string name="export_file_name">frp_configs_export.json</string>
+
+</resources>

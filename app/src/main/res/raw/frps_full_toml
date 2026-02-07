@@ -1,0 +1,54 @@
+# Complete frps configuration example in TOML format
+# See https://gofrp.org/zh-cn/docs/reference/server-configures/ for full documentation
+
+bindAddr = "0.0.0.0"
+bindPort = 7000
+bindUDPPort = 7001
+kcpBindPort = 7000
+vhostHTTPPort = 80
+vhostHTTPSPort = 443
+vhostHTTPTimeout = 60
+proxyBindAddr = "0.0.0.0"
+tlsOnly = false
+udpPacketSize = 1500
+tcpMux = true
+tcpMuxKeepaliveInterval = 60
+tcpKeepalive = 7200
+maxPoolCount = 5
+maxPortsPerClient = 0
+subdomainHost = "frps.com"
+heartbeatTimeout = 90
+userConnTimeout = 10
+detailedErrorsToClient = true
+
+[auth]
+method = "token"
+token = "12345678"
+
+[log]
+file = "./frps.log"
+level = "info"
+maxDays = 3
+disableLogColor = false
+
+[webServer]
+addr = "0.0.0.0"
+port = 7500
+user = "admin"
+password = "admin"
+tlsMode = false
+pprofEnable = false
+
+[[allowPorts]]
+start = 2000
+end = 3000
+
+[[allowPorts]]
+single = 3001
+
+[[allowPorts]]
+single = 3003
+
+[[allowPorts]]
+start = 4000
+end = 50000

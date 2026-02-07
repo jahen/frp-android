@@ -1,0 +1,65 @@
+# Complete frps configuration example in YAML format
+# See https://gofrp.org/zh-cn/docs/reference/server-configures/ for full documentation
+# Based on official legacy INI configuration
+
+bindAddr: "0.0.0.0"
+bindPort: 7000
+bindUDPPort: 7001
+kcpBindPort: 7000
+vhostHTTPPort: 80
+vhostHTTPSPort: 443
+vhostHTTPTimeout: 60
+proxyBindAddr: "0.0.0.0"
+tlsOnly: false
+udpPacketSize: 1500
+tcpMux: true
+tcpMuxKeepaliveInterval: 60
+tcpKeepalive: 7200
+maxPoolCount: 5
+maxPortsPerClient: 0
+subdomainHost: "frps.com"
+heartbeatTimeout: 90
+userConnTimeout: 10
+detailedErrorsToClient: true
+natHoleAnalysisDataReserveHours: 168
+
+auth:
+  method: "token"
+  token: "12345678"
+  authenticateHeartbeats: false
+  authenticateNewWorkConns: false
+
+log:
+  file: "./frps.log"
+  level: "info"
+  maxDays: 3
+  disableLogColor: false
+
+webServer:
+  addr: "0.0.0.0"
+  port: 7500
+  user: "admin"
+  password: "admin"
+  tlsMode: false
+  pprofEnable: false
+
+allowPorts:
+  - start: 2000
+    end: 3000
+  - single: 3001
+  - single: 3003
+  - start: 4000
+    end: 50000
+
+plugins:
+  - name: "user-manager"
+    addr: "127.0.0.1:9000"
+    path: "/handler"
+    ops:
+      - "Login"
+
+  - name: "port-manager"
+    addr: "127.0.0.1:9001"
+    path: "/handler"
+    ops:
+      - "NewProxy"
