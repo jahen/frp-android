@@ -5,6 +5,10 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -12,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.afollestad.materialdialogs.MaterialDialog;
+import max.plus.frp.ConfigFileStore;
 import max.plus.frp.R;
 import max.plus.frp.database.FrpcDatabase;
 import max.plus.frp.database.FrpsDatabase;
@@ -28,6 +33,7 @@ import io.reactivex.CompletableObserver;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
+import java.io.File;
 
 public class IniEditActivity extends AppCompatActivity {
 
@@ -38,6 +44,7 @@ public class IniEditActivity extends AppCompatActivity {
     Toolbar toolbar;
 
     private Config config;
+    private static final String[] SUPPORTED_FORMATS = {"ini", "toml", "yaml", "json"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,43 +93,62 @@ public class IniEditActivity extends AppCompatActivity {
 
 
     private void actionSave() {
-        new MaterialDialog.Builder(this)
+        MaterialDialog saveDialog = new MaterialDialog.Builder(this)
                 .title(TextUtils.isEmpty(config.getName()) ? R.string.titleInputFileName : R.string.titleModifyFileName)
                 .canceledOnTouchOutside(false)
                 .autoDismiss(false)
                 .negativeText(R.string.cancel)
                 .positiveText(R.string.done)
                 .onNegative((dialog, which) -> dialog.dismiss())
-                .input("", TextUtils.isEmpty(config.getName()) ? "" : config.getName(), false, (dialog, input) ->
-                {
-                    config.setName(input.toString())
-                            .setCfg(editText.getText());
-                    // 根据内容检测格式：有内容时从内容推断，内容为空时使用添加时选择的格式
-                    String content = editText.getText();
-                    String formatToSave;
-                    if (content == null || content.trim().isEmpty()) {
-                        formatToSave = (config.getFormat() != null && !config.getFormat().isEmpty())
-                                ? config.getFormat() : "toml";
-                    } else {
-                        formatToSave = inferFormatFromContent(content);
+                .customView(R.layout.dialog_save_config, false)
+                .onPositive((dialog, which) -> {
+                    View customView = dialog.getCustomView();
+                    if (customView == null) {
+                        return;
                     }
-                    config.setFormat(formatToSave);
+                    final String oldName = config.getName();
+                    final String oldFormat = config.getFormat();
+                    final boolean isNewConfig = TextUtils.isEmpty(config.getUid());
+                    EditText etName = customView.findViewById(R.id.et_config_name);
+                    Spinner spFormat = customView.findViewById(R.id.sp_config_format);
+                    String rawName = etName.getText() != null ? etName.getText().toString().trim() : "";
+                    String selectedFormat = getSelectedFormat(spFormat);
+                    String normalizedName = normalizeConfigName(rawName);
+                    String type = MainActivity.serverType == "frps" ? "frps" : "frpc";
+                    boolean isNew = TextUtils.isEmpty(config.getUid());
+                    if (isNew) {
+                        config.setUid(UUID.randomUUID().toString());
+                    }
+
+                    String rawCfg = editText.getText();
+                    File targetFile = ConfigFileStore.getConfigFile(
+                            IniEditActivity.this.getApplicationContext(),
+                            type,
+                            config.getUid(),
+                            normalizedName,
+                            selectedFormat
+                    );
+                    String normalizedCfg = ConfigFileStore.normalizeStorePath(rawCfg, targetFile.getParentFile());
+
+                    config.setName(normalizedName)
+                            .setCfg(normalizedCfg);
+                    config.setFormat(selectedFormat);
                     Completable action;
                     if(MainActivity.serverType=="frps"){
                     action =
-                            TextUtils.isEmpty(config.getUid()) ?
+                            isNew ?
                             FrpsDatabase.getInstance(IniEditActivity.this)
                                     .configDao()
-                                    .insert(config.setUid(UUID.randomUUID().toString())) :
+                                    .insert(config) :
                             FrpsDatabase.getInstance(IniEditActivity.this)
                                     .configDao()
                                     .update(config);
                     }else{
                     action =
-                            TextUtils.isEmpty(config.getUid()) ?
+                            isNew ?
                             FrpcDatabase.getInstance(IniEditActivity.this)
                                     .configDao()
-                                    .insert(config.setUid(UUID.randomUUID().toString())) :
+                                    .insert(config) :
                             FrpcDatabase.getInstance(IniEditActivity.this)
                                     .configDao()
                                     .update(config);
@@ -138,6 +164,31 @@ public class IniEditActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onComplete() {
+                                    try {
+                                        java.io.File newFile = ConfigFileStore.writeConfigAtomic(
+                                                IniEditActivity.this.getApplicationContext(),
+                                                type,
+                                                config.getUid(),
+                                                config.getName(),
+                                                config.getFormat(),
+                                                config.getCfg()
+                                        );
+                                        // 改名/改格式后，清理旧文件，保证每条配置仅保留一份文件
+                                        if (!isNewConfig) {
+                                            java.io.File oldFile = ConfigFileStore.getConfigFile(
+                                                    IniEditActivity.this.getApplicationContext(),
+                                                    type,
+                                                    config.getUid(),
+                                                    oldName,
+                                                    oldFormat
+                                            );
+                                            if (!oldFile.equals(newFile) && oldFile.exists()) {
+                                                oldFile.delete();
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        Toast.makeText(IniEditActivity.this, "配置已保存到数据库，但写入文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                    }
                                     Toast.makeText(IniEditActivity.this.getApplicationContext(), R.string.tipSaveSuccess, Toast.LENGTH_SHORT).show();
                                     dialog.dismiss();
                                     if(MainActivity.serverType=="frps"){
@@ -154,7 +205,69 @@ public class IniEditActivity extends AppCompatActivity {
 
                                 }
                             });
-                }).show();
+                })
+                .show();
+        initSaveDialogViews(saveDialog);
+    }
+
+    private void initSaveDialogViews(MaterialDialog dialog) {
+        View customView = dialog.getCustomView();
+        if (customView == null) {
+            return;
+        }
+        EditText etName = customView.findViewById(R.id.et_config_name);
+        Spinner spFormat = customView.findViewById(R.id.sp_config_format);
+
+        etName.setText(TextUtils.isEmpty(config.getName()) ? "" : config.getName());
+
+        String[] labels = new String[]{
+                getString(R.string.config_format_ini),
+                getString(R.string.config_format_toml),
+                getString(R.string.config_format_yaml),
+                getString(R.string.config_format_json)
+        };
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spFormat.setAdapter(adapter);
+
+        int index = getFormatIndex(config.getFormat());
+        spFormat.setSelection(index);
+    }
+
+    private int getFormatIndex(String format) {
+        String f = normalizeFormat(format);
+        for (int i = 0; i < SUPPORTED_FORMATS.length; i++) {
+            if (SUPPORTED_FORMATS[i].equals(f)) {
+                return i;
+            }
+        }
+        return 1;
+    }
+
+    private String getSelectedFormat(Spinner spinner) {
+        int idx = spinner.getSelectedItemPosition();
+        if (idx < 0 || idx >= SUPPORTED_FORMATS.length) {
+            return "toml";
+        }
+        return SUPPORTED_FORMATS[idx];
+    }
+
+    private String normalizeFormat(String format) {
+        if (format == null) {
+            return "toml";
+        }
+        String f = format.trim().toLowerCase();
+        if ("yml".equals(f)) {
+            return "yaml";
+        }
+        if ("ini".equals(f) || "toml".equals(f) || "yaml".equals(f) || "json".equals(f)) {
+            return f;
+        }
+        return "toml";
+    }
+
+    private String normalizeConfigName(String name) {
+        return TextUtils.isEmpty(name) ? getString(R.string.noName) : name.trim();
     }
 
 

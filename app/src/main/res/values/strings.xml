@@ -48,7 +48,7 @@
     <string name="logcat_delete">删除</string>
     <string name="copySuccess">复制成功</string>
     <string name="titleTemplate">模板文件</string>
-    <string name="app_version">0.67.0</string>
+    <string name="app_version">0.68.0</string>
     <string name="app_repository">关于</string>
     <string name="app_repository_url">https://github.com/jahen/frp-android</string>
     <string name="about_app_author_label">App 作者 (jahen):</string>
@@ -76,5 +76,6 @@
     <string name="import_success">导入成功</string>
     <string name="import_failed">导入失败</string>
     <string name="export_file_name">frp_configs_export.json</string>
+    <string name="label_format">格式：</string>
 
 </resources>

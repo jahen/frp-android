@@ -133,7 +133,7 @@ public class VersionActivity extends AppCompatActivity {
 
                     List<VersionItem> items = new ArrayList<>(itemMap.values());
 
-                    // 按版本号从大到小排序（字符串比较即可，形如 0.61.1、0.67.0）
+                    // 按版本号从大到小排序（字符串比较即可，形如 0.61.1、0.68.0）
                     java.util.Collections.sort(items, (a, b) -> {
                         if (a.version == null) return 1;
                         if (b.version == null) return -1;
@@ -177,7 +177,7 @@ public class VersionActivity extends AppCompatActivity {
     }
 
     /**
-     * 比较两个形如 "0.67.0" 的版本号，返回正数表示 v1 > v2
+     * 比较两个形如 "0.68.0" 的版本号，返回正数表示 v1 > v2
      */
     private int compareVersion(String v1, String v2) {
         if (v1 == null) v1 = "";

@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
+import android.os.FileObserver;
 import android.os.IBinder;
 import android.text.TextUtils;
 import android.util.Log;
@@ -36,11 +37,21 @@ import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 public class FrpcService extends Service {
     public static final String INTENT_KEY_FILE = "INTENT_KEY_FILE_FRPC";
     public static final int NOTIFY_ID = 0x1010;
     private final CompositeDisposable compositeDisposable = new CompositeDisposable();
     private NotificationManager notificationManager;
+    private final Map<String, FileObserver> configObservers = new HashMap<>();
+    private final Set<String> selfWritingUids = new HashSet<>();
 
 
     @Nullable
@@ -53,6 +64,7 @@ public class FrpcService extends Service {
     public void onCreate() {
         super.onCreate();
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        flushAllConfigsToFilesAsync();
 
         LiveEventBus.get(INTENT_KEY_FILE, String.class).observeForever(keyObserver);
 
@@ -93,6 +105,17 @@ public class FrpcService extends Service {
                             Log.w("FrpcService", "Library not loaded, cannot run content");
                             return Single.just("Library not loaded");
                         }
+                        File file = persistConfigForRun(config);
+                        if (Client.supportsRunFile()) {
+                            String error = Client.runFile(config.getUid(), file.getAbsolutePath());
+                            if (TextUtils.isEmpty(error)) {
+                                watchConfigFile(config.getUid(), file);
+                                return Single.just("");
+                            }
+                            Log.w("FrpcService", "runFile failed, fallback to runContent. error: " + error);
+                        } else {
+                            Log.d("FrpcService", "Current library does not support runFile, using runContent");
+                        }
                         String error = Client.runContent(config.getUid(), config.getCfg());
                         return Single.just(error);
                     } catch (UnsatisfiedLinkError e) {
@@ -128,6 +151,138 @@ public class FrpcService extends Service {
                     }
                 });
 
+    }
+
+    private File persistConfigForRun(Config config) throws IOException {
+        synchronized (selfWritingUids) {
+            selfWritingUids.add(config.getUid());
+        }
+        try {
+            return ConfigFileStore.writeConfigAtomic(
+                    this,
+                    "frpc",
+                    config.getUid(),
+                    config.getName(),
+                    config.getFormat(),
+                    config.getCfg()
+            );
+        } finally {
+            synchronized (selfWritingUids) {
+                selfWritingUids.remove(config.getUid());
+            }
+        }
+    }
+
+    private void watchConfigFile(String uid, File configFile) {
+        FileObserver old = configObservers.remove(uid);
+        if (old != null) {
+            old.stopWatching();
+        }
+        File parent = configFile.getParentFile();
+        if (parent == null) return;
+        FileObserver observer = new FileObserver(parent.getAbsolutePath(), FileObserver.CLOSE_WRITE | FileObserver.MOVED_TO) {
+            @Override
+            public void onEvent(int event, String path) {
+                if (TextUtils.isEmpty(path)) return;
+                if (!path.equals(configFile.getName())) return;
+                synchronized (selfWritingUids) {
+                    if (selfWritingUids.contains(uid)) return;
+                }
+                syncConfigFileToDb(uid, configFile);
+            }
+        };
+        observer.startWatching();
+        configObservers.put(uid, observer);
+    }
+
+    private void syncConfigFileToDb(String uid, File configFile) {
+        try {
+            if (!configFile.exists()) return;
+            String fileContentRaw = ConfigFileStore.readUtf8(configFile);
+            String fileContent = ConfigFileStore.normalizeStorePath(fileContentRaw, configFile.getParentFile());
+            if (!TextUtils.equals(fileContentRaw, fileContent)) {
+                synchronized (selfWritingUids) {
+                    selfWritingUids.add(uid);
+                }
+                try {
+                    ConfigFileStore.writeExistingFileAtomic(configFile, fileContent);
+                } finally {
+                    synchronized (selfWritingUids) {
+                        selfWritingUids.remove(uid);
+                    }
+                }
+            }
+            FrpcDatabase.getInstance(this)
+                    .configDao()
+                    .getConfigByUid(uid)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(Schedulers.io())
+                    .subscribe(new SingleObserver<Config>() {
+                        @Override
+                        public void onSubscribe(Disposable d) {
+                            compositeDisposable.add(d);
+                        }
+
+                        @Override
+                        public void onSuccess(Config config) {
+                            String inferredFormat = ConfigFormatUtils.inferFormatAfterFileEdited(
+                                    configFile.getName(),
+                                    fileContent,
+                                    config.getFormat()
+                            );
+                            if (TextUtils.equals(config.getCfg(), fileContent)
+                                    && TextUtils.equals(ConfigFormatUtils.normalizeFormat(config.getFormat()), inferredFormat)) {
+                                return;
+                            }
+                            config.setCfg(fileContent);
+                            config.setFormat(inferredFormat);
+                            FrpcDatabase.getInstance(FrpcService.this)
+                                    .configDao()
+                                    .update(config)
+                                    .subscribeOn(Schedulers.io())
+                                    .subscribe();
+                        }
+
+                        @Override
+                        public void onError(Throwable e) {
+                            Log.w("FrpcService", "syncConfigFileToDb getConfigByUid failed: " + e.getMessage());
+                        }
+                    });
+        } catch (IOException e) {
+            Log.w("FrpcService", "syncConfigFileToDb read file failed: " + e.getMessage());
+        }
+    }
+
+    private void flushAllConfigsToFilesAsync() {
+        FrpcDatabase.getInstance(this)
+                .configDao()
+                .getAll()
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io())
+                .subscribe(new SingleObserver<List<Config>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        compositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(List<Config> configs) {
+                        for (Config config : configs) {
+                            try {
+                                File file = persistConfigForRun(config);
+                                watchConfigFile(config.getUid(), file);
+                            } catch (IOException e) {
+                                Log.w("FrpcService", "flush config failed uid=" + config.getUid() + ", error=" + e.getMessage());
+                            }
+                        }
+                        Log.d("FrpcService", "flush completed, total configs: " + configs.size());
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.w("FrpcService", "flushAllConfigsToFilesAsync failed: " + e.getMessage());
+                    }
+                });
     }
 
 
@@ -175,6 +330,10 @@ public class FrpcService extends Service {
     public void onDestroy() {
         super.onDestroy();
         stopForeground(true);
+        for (FileObserver observer : configObservers.values()) {
+            observer.stopWatching();
+        }
+        configObservers.clear();
         compositeDisposable.dispose();
     }
 

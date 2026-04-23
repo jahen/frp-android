@@ -49,6 +49,21 @@ public class Client {
         Object result = FrpLibraryManager.getInstance().invokeClientMethod("runContent", uid, cfg);
         return result != null ? result.toString() : null;
     }
+
+    /**
+     * 运行配置文件
+     * @param uid 配置 UID
+     * @param filePath 配置文件路径
+     * @return 错误信息，如果成功返回 null 或空字符串
+     */
+    public static String runFile(String uid, String filePath) {
+        Object result = FrpLibraryManager.getInstance().invokeClientMethod("runFile", uid, filePath);
+        return result != null ? result.toString() : null;
+    }
+
+    public static boolean supportsRunFile() {
+        return FrpLibraryManager.getInstance().isRunFileReliable();
+    }
     
     /**
      * 获取所有运行中的 UID 列表

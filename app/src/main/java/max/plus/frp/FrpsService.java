@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
+import android.os.FileObserver;
 import android.os.IBinder;
 import android.text.TextUtils;
 import android.util.Log;
@@ -36,6 +37,14 @@ import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 public class FrpsService extends Service {
     public static final String INTENT_KEY_FILE = "INTENT_KEY_FILE_FRPS";
     public static final String INTENT_KEY_FILE_STOP = "INTENT_KEY_FILE_STOP_FRPS";
@@ -44,6 +53,8 @@ public class FrpsService extends Service {
     public static final int NOTIFY_ID = 0x1011;
     private final CompositeDisposable compositeDisposable = new CompositeDisposable();
     private NotificationManager notificationManager;
+    private final Map<String, FileObserver> configObservers = new HashMap<>();
+    private final Set<String> selfWritingUids = new HashSet<>();
 
 
     @Nullable
@@ -68,6 +79,7 @@ public class FrpsService extends Service {
         } else {
             android.util.Log.d("FrpsService", "Library loaded successfully in frps process, version: " + manager.getCurrentVersion());
         }
+        flushAllConfigsToFilesAsync();
 
         LiveEventBus.get(INTENT_KEY_FILE, String.class).observeForever(keyObserver);
 
@@ -79,6 +91,10 @@ public class FrpsService extends Service {
                 if (max.plus.frp.library.FrpLibraryManager.getInstance().isLibraryLoaded() && Server.isRunning(uid)) {
                     Server.close(uid);
                     Log.e("FrpsService", "Server.close() called for uid: " + uid);
+                }
+                FileObserver observer = configObservers.remove(uid);
+                if (observer != null) {
+                    observer.stopWatching();
                 }
             } catch (Exception e) {
                 Log.e("FrpsService", "Error closing uid " + uid + ": " + e.getMessage());
@@ -173,6 +189,17 @@ public class FrpsService extends Service {
                             Log.w("FrpsService", "Library not loaded, cannot run content");
                             return Single.just("Library not loaded");
                         }
+                        File file = persistConfigForRun(config);
+                        if (Server.supportsRunFile()) {
+                            String error = Server.runFile(config.getUid(), file.getAbsolutePath());
+                            if (TextUtils.isEmpty(error)) {
+                                watchConfigFile(config.getUid(), file);
+                                return Single.just("");
+                            }
+                            Log.w("FrpsService", "runFile failed, fallback to runContent. error: " + error);
+                        } else {
+                            Log.d("FrpsService", "Current library does not support runFile, using runContent");
+                        }
                         String error = Server.runContent(config.getUid(), config.getCfg());
                         return Single.just(error);
                     } catch (UnsatisfiedLinkError e) {
@@ -244,6 +271,138 @@ public class FrpsService extends Service {
 
     }
 
+    private File persistConfigForRun(Config config) throws IOException {
+        synchronized (selfWritingUids) {
+            selfWritingUids.add(config.getUid());
+        }
+        try {
+            return ConfigFileStore.writeConfigAtomic(
+                    this,
+                    "frps",
+                    config.getUid(),
+                    config.getName(),
+                    config.getFormat(),
+                    config.getCfg()
+            );
+        } finally {
+            synchronized (selfWritingUids) {
+                selfWritingUids.remove(config.getUid());
+            }
+        }
+    }
+
+    private void watchConfigFile(String uid, File configFile) {
+        FileObserver old = configObservers.remove(uid);
+        if (old != null) {
+            old.stopWatching();
+        }
+        File parent = configFile.getParentFile();
+        if (parent == null) return;
+        FileObserver observer = new FileObserver(parent.getAbsolutePath(), FileObserver.CLOSE_WRITE | FileObserver.MOVED_TO) {
+            @Override
+            public void onEvent(int event, String path) {
+                if (TextUtils.isEmpty(path)) return;
+                if (!path.equals(configFile.getName())) return;
+                synchronized (selfWritingUids) {
+                    if (selfWritingUids.contains(uid)) return;
+                }
+                syncConfigFileToDb(uid, configFile);
+            }
+        };
+        observer.startWatching();
+        configObservers.put(uid, observer);
+    }
+
+    private void syncConfigFileToDb(String uid, File configFile) {
+        try {
+            if (!configFile.exists()) return;
+            String fileContentRaw = ConfigFileStore.readUtf8(configFile);
+            String fileContent = ConfigFileStore.normalizeStorePath(fileContentRaw, configFile.getParentFile());
+            if (!TextUtils.equals(fileContentRaw, fileContent)) {
+                synchronized (selfWritingUids) {
+                    selfWritingUids.add(uid);
+                }
+                try {
+                    ConfigFileStore.writeExistingFileAtomic(configFile, fileContent);
+                } finally {
+                    synchronized (selfWritingUids) {
+                        selfWritingUids.remove(uid);
+                    }
+                }
+            }
+            FrpsDatabase.getInstance(this)
+                    .configDao()
+                    .getConfigByUid(uid)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(Schedulers.io())
+                    .subscribe(new SingleObserver<Config>() {
+                        @Override
+                        public void onSubscribe(Disposable d) {
+                            compositeDisposable.add(d);
+                        }
+
+                        @Override
+                        public void onSuccess(Config config) {
+                            String inferredFormat = ConfigFormatUtils.inferFormatAfterFileEdited(
+                                    configFile.getName(),
+                                    fileContent,
+                                    config.getFormat()
+                            );
+                            if (TextUtils.equals(config.getCfg(), fileContent)
+                                    && TextUtils.equals(ConfigFormatUtils.normalizeFormat(config.getFormat()), inferredFormat)) {
+                                return;
+                            }
+                            config.setCfg(fileContent);
+                            config.setFormat(inferredFormat);
+                            FrpsDatabase.getInstance(FrpsService.this)
+                                    .configDao()
+                                    .update(config)
+                                    .subscribeOn(Schedulers.io())
+                                    .subscribe();
+                        }
+
+                        @Override
+                        public void onError(Throwable e) {
+                            Log.w("FrpsService", "syncConfigFileToDb getConfigByUid failed: " + e.getMessage());
+                        }
+                    });
+        } catch (IOException e) {
+            Log.w("FrpsService", "syncConfigFileToDb read file failed: " + e.getMessage());
+        }
+    }
+
+    private void flushAllConfigsToFilesAsync() {
+        FrpsDatabase.getInstance(this)
+                .configDao()
+                .getAll()
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io())
+                .subscribe(new SingleObserver<List<Config>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        compositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(List<Config> configs) {
+                        for (Config config : configs) {
+                            try {
+                                File file = persistConfigForRun(config);
+                                watchConfigFile(config.getUid(), file);
+                            } catch (IOException e) {
+                                Log.w("FrpsService", "flush config failed uid=" + config.getUid() + ", error=" + e.getMessage());
+                            }
+                        }
+                        Log.d("FrpsService", "flush completed, total configs: " + configs.size());
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.w("FrpsService", "flushAllConfigsToFilesAsync failed: " + e.getMessage());
+                    }
+                });
+    }
+
 
 
     @Override
@@ -290,6 +449,10 @@ public class FrpsService extends Service {
         super.onDestroy();
         Log.e("FrpsService", "onDestroy called, killing process");
         stopForeground(true);
+        for (FileObserver observer : configObservers.values()) {
+            observer.stopWatching();
+        }
+        configObservers.clear();
         compositeDisposable.dispose();
         // frps 运行在独立进程，直接杀进程，端口立即释放
         android.os.Process.killProcess(android.os.Process.myPid());

@@ -22,6 +22,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import max.plus.frp.CommonUtils;
+import max.plus.frp.ConfigFileStore;
 import max.plus.frp.FrpsService;
 import max.plus.frp.R;
 import max.plus.frp.adapter.FileListAdapterFrps;
@@ -208,6 +209,7 @@ public class HomeFragmentFrps extends Fragment {
             if (position < 0) {
                 listAdapter.addData(config);
             } else {
+                listAdapter.getData().set(position, config);
                 listAdapter.notifyItemChanged(position);
             }
         });
@@ -350,8 +352,32 @@ public class HomeFragmentFrps extends Fragment {
 
     private void editConfig(int position) {
         Config item = listAdapter.getItem(position);
-        LiveEventBus.get(IniEditActivity.INTENT_EDIT_INI).post(item);
-        startActivity(new Intent(getContext(), IniEditActivity.class));
+        if (item == null) {
+            return;
+        }
+        FrpsDatabase.getInstance(getContext())
+                .configDao()
+                .getConfigByUid(item.getUid())
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<Config>() {
+                    @Override
+                    public void onSubscribe(@NonNull Disposable d) {
+                    }
+
+                    @Override
+                    public void onSuccess(@NonNull Config latestConfig) {
+                        LiveEventBus.get(IniEditActivity.INTENT_EDIT_INI).post(latestConfig);
+                        startActivity(new Intent(getContext(), IniEditActivity.class));
+                    }
+
+                    @Override
+                    public void onError(@NonNull Throwable e) {
+                        // 数据库读取失败时回退到当前列表项，保证可编辑
+                        LiveEventBus.get(IniEditActivity.INTENT_EDIT_INI).post(item);
+                        startActivity(new Intent(getContext(), IniEditActivity.class));
+                    }
+                });
 
     }
 
@@ -432,6 +458,7 @@ public class HomeFragmentFrps extends Fragment {
                     public void onSuccess(@NonNull List<Config> configs) {
                         refreshView.setRefreshing(false);
                         listAdapter.setList(configs);
+                        flushConfigsToFilesAsync(configs);
                         MainActivity.homeFrmtIsRdy=true;
                         // 触发获取运行中的 uid 列表，恢复 connecting 状态
                         // 延迟触发，确保库已完全初始化，避免在版本切换期间崩溃
@@ -455,6 +482,31 @@ public class HomeFragmentFrps extends Fragment {
                         MainActivity.homeFrmtIsRdy=true;
                     }
                 });
+    }
+
+    private void flushConfigsToFilesAsync(List<Config> configs) {
+        if (configs == null || configs.isEmpty()) {
+            return;
+        }
+        final android.content.Context appContext = getContext() != null ? getContext().getApplicationContext() : null;
+        if (appContext == null) {
+            return;
+        }
+        Schedulers.io().scheduleDirect(() -> {
+            for (Config config : configs) {
+                try {
+                    ConfigFileStore.writeConfigAtomic(
+                            appContext,
+                            "frps",
+                            config.getUid(),
+                            config.getName(),
+                            config.getFormat(),
+                            config.getCfg()
+                    );
+                } catch (Exception ignored) {
+                }
+            }
+        });
     }
 
     @Override

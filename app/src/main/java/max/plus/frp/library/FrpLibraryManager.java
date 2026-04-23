@@ -73,7 +73,7 @@ public class FrpLibraryManager {
     
     /**
      * 加载指定版本的库
-     * @param version 版本号，如 "0.67.0"
+     * @param version 版本号，如 "0.68.0"
      * @return 是否加载成功
      */
     public boolean loadLibrary(String version) {
@@ -377,6 +377,20 @@ public class FrpLibraryManager {
     public Object invokeServerMethod(String methodName, Object... args) {
         return invokeStaticMethod(serverClass, methodName, args);
     }
+
+    /**
+     * 检查 Client 类是否存在指定签名的方法
+     */
+    public boolean hasClientMethod(String methodName, int argCount) {
+        return hasMethod(clientClass, methodName, argCount);
+    }
+
+    /**
+     * 检查 Server 类是否存在指定签名的方法
+     */
+    public boolean hasServerMethod(String methodName, int argCount) {
+        return hasMethod(serverClass, methodName, argCount);
+    }
     
     /**
      * 调用静态方法
@@ -433,6 +447,25 @@ public class FrpLibraryManager {
             Log.w(TAG, "Unexpected error invoking method: " + methodName + ", error: " + t.getMessage());
             return null;
         }
+    }
+
+    private boolean hasMethod(Class<?> clazz, String methodName, int argCount) {
+        if (clazz == null || classLoader == null) {
+            return false;
+        }
+        try {
+            Method[] methods = clazz.getDeclaredMethods();
+            for (Method method : methods) {
+                if (!method.getName().equals(methodName)) {
+                    continue;
+                }
+                if (method.getParameterTypes().length == argCount) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
     
     /**
@@ -572,6 +605,69 @@ public class FrpLibraryManager {
      */
     public String getCurrentVersion() {
         return currentVersion;
+    }
+
+    /**
+     * runFile 在 0.68.0 之前版本存在已知问题（uid 不生效）
+     */
+    public boolean isRunFileReliable() {
+        return isVersionAtLeast(currentVersion, "0.68.0");
+    }
+
+    private boolean isVersionAtLeast(String version, String minVersion) {
+        if (version == null || version.trim().isEmpty()) {
+            return false;
+        }
+        int[] left = parseSemver(version);
+        int[] right = parseSemver(minVersion);
+        for (int i = 0; i < 3; i++) {
+            if (left[i] > right[i]) {
+                return true;
+            }
+            if (left[i] < right[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private int[] parseSemver(String version) {
+        int[] out = new int[]{0, 0, 0};
+        if (version == null) {
+            return out;
+        }
+        String normalized = version.trim();
+        if (normalized.startsWith("v") || normalized.startsWith("V")) {
+            normalized = normalized.substring(1);
+        }
+        String[] parts = normalized.split("\\.");
+        for (int i = 0; i < out.length && i < parts.length; i++) {
+            out[i] = parseLeadingInt(parts[i]);
+        }
+        return out;
+    }
+
+    private int parseLeadingInt(String part) {
+        if (part == null || part.isEmpty()) {
+            return 0;
+        }
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < part.length(); i++) {
+            char c = part.charAt(i);
+            if (c >= '0' && c <= '9') {
+                digits.append(c);
+            } else {
+                break;
+            }
+        }
+        if (digits.length() == 0) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(digits.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
     
     /**
