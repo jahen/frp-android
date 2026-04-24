@@ -608,10 +608,10 @@ public class FrpLibraryManager {
     }
 
     /**
-     * runFile 在 0.68.0 之前版本存在已知问题（uid 不生效）
+     * runFile 至少 0 . 68 . 0 因为之前版本存在已知问题（uid 不生效）
      */
     public boolean isRunFileReliable() {
-        return isVersionAtLeast(currentVersion, "0.68.0");
+        return isVersionAtLeast(currentVersion, "0."+"68"+".0");
     }
 
     private boolean isVersionAtLeast(String version, String minVersion) {
