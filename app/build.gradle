@@ -30,7 +30,7 @@ android {
         minSdkVersion 19
         targetSdkVersion 31
         versionCode 1
-        versionName "0.68.0"
+        versionName "0.68.1"
         multiDexEnabled true
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -96,7 +96,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     // 不再编译时依赖 frp.aar，改为运行时动态加载
-    // implementation(name: 'frp', ext: 'aar', group: '', version: '0.68.0')
+    // implementation(name: 'frp', ext: 'aar', group: '', version: '0.66.0')
 
     implementation 'androidx.recyclerview:recyclerview:1.1.0'
     implementation 'com.jakewharton:butterknife:10.2.1'

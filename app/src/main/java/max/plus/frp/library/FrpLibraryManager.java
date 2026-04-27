@@ -73,7 +73,7 @@ public class FrpLibraryManager {
     
     /**
      * 加载指定版本的库
-     * @param version 版本号，如 "0.68.0"
+     * @param version 版本号，如 "0.66.0"
      * @return 是否加载成功
      */
     public boolean loadLibrary(String version) {
