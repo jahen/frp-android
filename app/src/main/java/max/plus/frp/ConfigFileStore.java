@@ -130,4 +130,36 @@ public class ConfigFileStore {
         n = n.replaceAll("\\s+", "_");
         return n;
     }
+
+    /**
+     * 删除该配置在私有目录下对应的整个 uid 目录（主配置、[store] 落盘等），与 {@link #getConfigFile} 使用的路径一致。
+     */
+    public static void deleteAllFilesForUid(Context context, String type, String uid) {
+        if (context == null || uid == null) {
+            return;
+        }
+        String safeType = "frps".equalsIgnoreCase(type) ? DIR_FRPS : DIR_FRPC;
+        File typeRoot = new File(context.getFilesDir(), safeType);
+        String safeUid = sanitizeFileName(uid);
+        if (safeUid.isEmpty()) {
+            return;
+        }
+        deleteRecursively(new File(typeRoot, safeUid));
+    }
+
+    private static void deleteRecursively(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        // noinspection ResultOfMethodCallIgnored
+        file.delete();
+    }
 }

@@ -1,5 +1,6 @@
 package max.plus.frp.ui;
 
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -322,10 +323,17 @@ public class HomeFragment extends Fragment {
     }
 
     private void deleteConfig(int position) {
+        final Config toRemove = listAdapter.getItem(position);
         FrpcDatabase.getInstance(getContext())
                 .configDao()
-                .delete(listAdapter.getItem(position))
+                .delete(toRemove)
                 .subscribeOn(Schedulers.io())
+                .doOnComplete(() -> {
+                    Context ctx = getContext();
+                    if (ctx != null) {
+                        ConfigFileStore.deleteAllFilesForUid(ctx.getApplicationContext(), "frpc", toRemove.getUid());
+                    }
+                })
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new CompletableObserver() {
                     @Override
@@ -358,10 +366,21 @@ public class HomeFragment extends Fragment {
                 Client.close(c.getUid());
             }
         }
+        final List<Config> snapshot = new ArrayList<>(listAdapter.getData());
         FrpcDatabase.getInstance(getContext())
                 .configDao()
                 .deleteAll()
                 .subscribeOn(Schedulers.io())
+                .doOnComplete(() -> {
+                    Context ctx = getContext();
+                    if (ctx == null) {
+                        return;
+                    }
+                    Context app = ctx.getApplicationContext();
+                    for (Config c : snapshot) {
+                        ConfigFileStore.deleteAllFilesForUid(app, "frpc", c.getUid());
+                    }
+                })
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new CompletableObserver() {
                     @Override
