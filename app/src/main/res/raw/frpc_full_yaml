@@ -1,0 +1,178 @@
+# Complete frpc configuration example in YAML format
+# See https://gofrp.org/zh-cn/docs/reference/client-configures/ for full documentation
+# Based on official legacy INI configuration
+
+serverAddr: "0.0.0.0"
+serverPort: 7000
+user: "your_name"
+loginFailExit: true
+protocol: "tcp"
+connectServerLocalIP: "0.0.0.0"
+tlsEnable: true
+disableCustomTLSFirstByte: true
+udpPacketSize: 1500
+poolCount: 5
+tcpMux: true
+tcpMuxKeepaliveInterval: 60
+
+auth:
+  method: "token"
+  token: "12345678"
+  authenticateHeartbeats: false
+  authenticateNewWorkConns: false
+
+log:
+  file: "./frpc.log"
+  level: "info"
+  maxDays: 3
+  disableLogColor: false
+
+webServer:
+  addr: "127.0.0.1"
+  port: 7400
+  user: "admin"
+  password: "admin"
+  pprofEnable: false
+
+transport:
+  dialServerTimeout: 10
+  dialServerKeepalive: 7200
+  proxyURL: ""
+
+proxies:
+  - name: "ssh"
+    type: "tcp"
+    localIP: "127.0.0.1"
+    localPort: 22
+    remotePort: 6001
+    useEncryption: false
+    useCompression: false
+    bandwidthLimit: "1MB"
+    bandwidthLimitMode: "client"
+    group: "test_group"
+    groupKey: "123456"
+    healthCheckType: "tcp"
+    healthCheckTimeoutSeconds: 3
+    healthCheckMaxFailed: 3
+    healthCheckIntervalSeconds: 10
+
+  - name: "ssh_random"
+    type: "tcp"
+    localIP: "127.0.0.1"
+    localPort: 22
+    remotePort: 0
+
+  - name: "dns"
+    type: "udp"
+    localIP: "114.114.114.114"
+    localPort: 53
+    remotePort: 6002
+    useEncryption: false
+    useCompression: false
+
+  - name: "web01"
+    type: "http"
+    localIP: "127.0.0.1"
+    localPort: 80
+    useEncryption: false
+    useCompression: true
+    httpUser: "admin"
+    httpPwd: "admin"
+    subdomain: "web01"
+    customDomains:
+      - "web01.yourdomain.com"
+    locations:
+      - "/"
+      - "/pic"
+    hostHeaderRewrite: "example.com"
+    healthCheckType: "http"
+    healthCheckURL: "/status"
+    healthCheckIntervalSeconds: 10
+    healthCheckMaxFailed: 3
+    healthCheckTimeoutSeconds: 3
+
+  - name: "web02"
+    type: "https"
+    localIP: "127.0.0.1"
+    localPort: 8000
+    useEncryption: false
+    useCompression: false
+    subdomain: "web02"
+    customDomains:
+      - "web02.yourdomain.com"
+    proxyProtocolVersion: "v2"
+
+  - name: "plugin_unix_domain_socket"
+    type: "tcp"
+    remotePort: 6003
+    plugin:
+      type: "unix_domain_socket"
+      unixPath: "/var/run/docker.sock"
+
+  - name: "plugin_http_proxy"
+    type: "tcp"
+    remotePort: 6004
+    plugin:
+      type: "http_proxy"
+      httpUser: "abc"
+      httpPasswd: "abc"
+
+  - name: "plugin_socks5"
+    type: "tcp"
+    remotePort: 6005
+    plugin:
+      type: "socks5"
+      username: "abc"
+      password: "abc"
+
+  - name: "secret_tcp"
+    type: "stcp"
+    sk: "abcdefg"
+    localIP: "127.0.0.1"
+    localPort: 22
+    useEncryption: false
+    useCompression: false
+    allowUsers: "*"
+
+  - name: "secret_tcp_visitor"
+    role: "visitor"
+    type: "stcp"
+    serverName: "secret_tcp"
+    sk: "abcdefg"
+    bindAddr: "127.0.0.1"
+    bindPort: 9000
+    useEncryption: false
+    useCompression: false
+
+  - name: "p2p_tcp"
+    type: "xtcp"
+    sk: "abcdefg"
+    localIP: "127.0.0.1"
+    localPort: 22
+    useEncryption: false
+    useCompression: false
+    allowUsers:
+      - "user1"
+      - "user2"
+
+  - name: "p2p_tcp_visitor"
+    role: "visitor"
+    type: "xtcp"
+    serverUser: "user1"
+    serverName: "p2p_tcp"
+    sk: "abcdefg"
+    bindAddr: "127.0.0.1"
+    bindPort: 9001
+    useEncryption: false
+    useCompression: false
+    keepTunnelOpen: false
+    maxRetriesAnHour: 8
+    minRetryInterval: 90
+
+  - name: "tcpmuxhttpconnect"
+    type: "tcpmux"
+    multiplexer: "httpconnect"
+    localIP: "127.0.0.1"
+    localPort: 10701
+    customDomains:
+      - "tunnel1"

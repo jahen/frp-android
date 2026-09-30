@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/nav_home_frpc">
+
+    <fragment
+        android:id="@+id/nav_home_frpc"
+        android:name="max.plus.frp.ui.HomeFragment"
+        android:label="@string/menu_frpc"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/to_nav_home_frpc"
+            app:destination="@id/nav_home_frpc"
+            app:popUpTo="@+id/nav_home_frpc"
+            app:popUpToInclusive="true"/>
+        <action
+            android:id="@+id/to_nav_home_frps"
+            app:destination="@id/nav_home_frps"
+            app:popUpTo="@+id/nav_home_frpc"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_home_frps"
+        android:name="max.plus.frp.ui.HomeFragmentFrps"
+        android:label="@string/menu_frps"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/to_nav_home_frpc"
+            app:destination="@id/nav_home_frpc"
+            app:popUpTo="@+id/nav_home_frps"
+            app:popUpToInclusive="true"/>
+        <action
+            android:id="@+id/to_nav_home_frps"
+            app:destination="@id/nav_home_frps"
+            app:popUpTo="@+id/nav_home_frps"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+</navigation>

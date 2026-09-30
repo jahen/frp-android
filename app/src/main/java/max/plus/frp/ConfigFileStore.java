@@ -1,0 +1,190 @@
+package max.plus.frp;
+
+import android.content.Context;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class ConfigFileStore {
+    /** 引号内的相对路径，适用于 toml / ini / yaml / json */
+    private static final Pattern QUOTED_RELATIVE_PATH = Pattern.compile("\"(\\.\\/[^\"]*)\"");
+    /** TOML、INI：key = ./path */
+    private static final Pattern UNQUOTED_AFTER_EQUALS = Pattern.compile("(?m)(=[ \\t]+)(\\.\\/[^\\s#,;\\]\"']+)");
+    /** YAML、JSON：key: ./path */
+    private static final Pattern UNQUOTED_AFTER_COLON = Pattern.compile("(?m)(:[ \\t]+)(\\.\\/[^\\s#,;\\]\"']+)");
+
+    private static final String DIR_FRPC = "frpc";
+    private static final String DIR_FRPS = "frps";
+
+    private ConfigFileStore() {
+    }
+
+    public static File getConfigFile(Context context, String type, String uid, String name, String format) {
+        String safeType = "frps".equalsIgnoreCase(type) ? DIR_FRPS : DIR_FRPC;
+        String safeFormat = ConfigFormatUtils.normalizeFormat(format);
+        File typeRoot = new File(context.getFilesDir(), safeType);
+        if (!typeRoot.exists()) {
+            typeRoot.mkdirs();
+        }
+
+        String safeUid = sanitizeFileName(uid);
+        if (safeUid.isEmpty()) {
+            safeUid = "unknown";
+        }
+        File uidDir = new File(typeRoot, safeUid);
+        if (!uidDir.exists()) {
+            uidDir.mkdirs();
+        }
+
+        String baseName = sanitizeFileName(name);
+        if (baseName.isEmpty()) {
+            baseName = DIR_FRPS.equals(safeType) ? "frps" : "frpc";
+        }
+        // DB 中 name 不带格式；落盘文件名统一拼接 format 后缀
+        return new File(uidDir, baseName + "." + safeFormat);
+    }
+
+    public static File writeConfigAtomic(Context context, String type, String uid, String name, String format, String content) throws IOException {
+        File target = getConfigFile(context, type, uid, name, format);
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        String normalized = normalizeStorePath(content == null ? "" : content, parent);
+        // 内容一致时直接复用，避免不必要的写盘与 FileObserver 触发
+        if (target.exists()) {
+            String oldContent = readUtf8(target);
+            if (oldContent.equals(normalized)) {
+                return target;
+            }
+        }
+        writeExistingFileAtomic(target, normalized);
+        return target;
+    }
+
+    public static String readUtf8(File file) throws IOException {
+        byte[] buf = new byte[(int) file.length()];
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int read = fis.read(buf);
+            if (read <= 0) {
+                return "";
+            }
+            return new String(buf, 0, read, StandardCharsets.UTF_8);
+        }
+    }
+
+    public static void writeExistingFileAtomic(File target, String content) throws IOException {
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        File temp = new File(parent, target.getName() + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(temp, false)) {
+            byte[] data = (content == null ? "" : content).getBytes(StandardCharsets.UTF_8);
+            fos.write(data);
+            fos.flush();
+        }
+        if (target.exists() && !target.delete()) {
+            throw new IOException("Failed to replace old config file: " + target.getAbsolutePath());
+        }
+        if (!temp.renameTo(target)) {
+            throw new IOException("Failed to rename temp config file: " + temp.getAbsolutePath());
+        }
+    }
+
+    /**
+     * 将配置中以 {@code ./} 开头的相对路径替换为基于配置文件目录的绝对路径。
+     * 不依赖具体字段名（path、log.to、crtPath、includes 等均可），四种格式通用。
+     */
+    public static String normalizeStorePath(String content, File configDir) {
+        if (content == null || content.isEmpty() || configDir == null) {
+            return content == null ? "" : content;
+        }
+        String normalized = content;
+        normalized = replaceQuotedRelativePaths(normalized, configDir);
+        normalized = replaceUnquotedRelativePaths(normalized, configDir, UNQUOTED_AFTER_EQUALS);
+        normalized = replaceUnquotedRelativePaths(normalized, configDir, UNQUOTED_AFTER_COLON);
+        return normalized;
+    }
+
+    private static String replaceQuotedRelativePaths(String source, File configDir) {
+        Matcher matcher = QUOTED_RELATIVE_PATH.matcher(source);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String relativePath = matcher.group(1);
+            String absPath = resolveRelativePath(relativePath, configDir);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement("\"" + absPath + "\""));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private static String replaceUnquotedRelativePaths(String source, File configDir, Pattern pattern) {
+        Matcher matcher = pattern.matcher(source);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String prefix = matcher.group(1);
+            String relativePath = matcher.group(2);
+            String absPath = resolveRelativePath(relativePath, configDir);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + absPath));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private static String resolveRelativePath(String dotSlashPath, File configDir) {
+        if (dotSlashPath == null || !dotSlashPath.startsWith("./")) {
+            return dotSlashPath;
+        }
+        String relative = dotSlashPath.substring(2);
+        File abs = new File(configDir, relative);
+        return abs.getAbsolutePath().replace("\\", "/");
+    }
+
+    private static String sanitizeFileName(String name) {
+        if (name == null) {
+            return "";
+        }
+        String n = name.trim();
+        n = n.replaceAll("[\\\\/:*?\"<>|]", "_");
+        n = n.replaceAll("\\s+", "_");
+        return n;
+    }
+
+    /**
+     * 删除该配置在私有目录下对应的整个 uid 目录（主配置、[store] 落盘等），与 {@link #getConfigFile} 使用的路径一致。
+     */
+    public static void deleteAllFilesForUid(Context context, String type, String uid) {
+        if (context == null || uid == null) {
+            return;
+        }
+        String safeType = "frps".equalsIgnoreCase(type) ? DIR_FRPS : DIR_FRPC;
+        File typeRoot = new File(context.getFilesDir(), safeType);
+        String safeUid = sanitizeFileName(uid);
+        if (safeUid.isEmpty()) {
+            return;
+        }
+        deleteRecursively(new File(typeRoot, safeUid));
+    }
+
+    private static void deleteRecursively(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        // noinspection ResultOfMethodCallIgnored
+        file.delete();
+    }
+}

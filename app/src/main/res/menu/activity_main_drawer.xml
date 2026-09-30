@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn="navigation_view">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home_frps"
+            android:icon="@drawable/ic_description_black_24dp_3lines"
+            android:title="@string/menu_frps" />
+    </group>
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home_frpc"
+            android:icon="@drawable/ic_description_black_24dp"
+            android:title="@string/menu_frpc" />
+    </group>
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home_fwd"
+            android:icon="@drawable/ic_appintro1"
+            android:title="@string/menu_fwd" />
+    </group>
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home_clash"
+            android:icon="@drawable/ic_clash"
+            android:title="@string/menu_clash" />
+    </group>
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home_v2rayng"
+            android:icon="@drawable/ic_v2rayng"
+            android:title="@string/menu_v2rayng" />
+    </group>
+
+    <item android:title="@string/title_about">
+        <menu>
+            <item
+                android:id="@+id/logcat"
+                android:icon="@drawable/ic_logcat_black"
+                android:title="@string/title_logcat" />
+            <item
+                android:id="@+id/version"
+                android:icon="@drawable/version"
+                android:title="@string/app_version" />
+            <item
+                android:id="@+id/repository"
+                android:icon="@drawable/ic_github"
+                android:title="@string/app_repository" />
+
+        </menu>
+    </item>
+</menu>
